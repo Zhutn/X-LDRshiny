@@ -1,4 +1,4 @@
-# X-LD Shiny
+# X-LDRShiny
 The core algorithm of X-LD is implemented in C and C++ and combined with Rshiny to build interactive web apps straight from R.
 You can easily deploy EigenGWAS directly at you PC/sever by running the following commands in RStudio/R.
 ~~~
