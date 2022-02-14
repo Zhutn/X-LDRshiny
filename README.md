@@ -6,7 +6,7 @@ You can easily deploy EigenGWAS directly at you PC/sever by running the followin
 install.packages(c("shiny","bsplus","RColorBrewer","corrplot"))
 # Then, you can run it directly at you RStudio, if you have shiny package installed.
 library(shiny)
-runGitHub("X-LD", "huangxin0221")
+runGitHub("X-LDRshiny", "huangxin0221")
 ~~~
 All platforms support.
 
