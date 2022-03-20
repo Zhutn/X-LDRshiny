@@ -297,22 +297,26 @@ server <- function(input, output, session) {
       incProgress(1/3, detail = paste0(" data pre-filter ..."))
       
       QC1 = paste0(plink2, " --bfile ", froot, " --chr-set ", input$autosome, " --allow-extra-chr --set-missing-var-ids @:# --autosome --snps-only --make-bed --out ", froot,".1.autosome.snp")
-      QC2 = paste0(plink2, " --bfile ", froot, ".1.autosome.snp --chr-set ", input$autosome, " --maf ", input$maf_cut, " --geno ", input$geno_cut, " --make-bed --out ", froot,".2.maf.geno")
       cat("QC...\nExtract autosome SNP variants...\n\n")
       system(QC1)
-      cat("\nQC...\nMAF and missing rate...\n\n")
-      system(QC2)
-      cat("\nQC...\nFinished...\n\n")
-      mm=as.numeric(strsplit(system(paste0("wc -l ", froot, ".2.maf.geno.bim"),intern=T)," ")[[1]][1])
-      
-      M=as.numeric(input$proportion)*mm
       
       if (as.numeric(input$proportion)==1){
-        frootCore = paste0(froot,".2.maf.geno")
+        QC2 = paste0(plink2, " --bfile ", froot, ".1.autosome.snp --chr-set ", input$autosome, " --maf ", input$maf_cut, " --geno ", input$geno_cut, " --make-bed --out ", froot,".3.core")
+        cat("\nQC...\nMAF and missing rate...\n\n")
+        system(QC2)
+        cat("\nQC...\nFinished...\n\n")
+        frootCore = paste0(froot,".3.core")
       }else{
-        Thin_CMD = paste0(plink, " --bfile ",froot,".2.maf.geno --chr-set 90 --allow-extra-chr --allow-no-sex --thin-count ",M, " --make-bed --out ",froot,".",input$proportion)
+        QC2 = paste0(plink2, " --bfile ", froot, ".1.autosome.snp --chr-set ", input$autosome, " --maf ", input$maf_cut, " --geno ", input$geno_cut, " --make-bed --out ", froot,".2.maf.geno")
+        cat("\nQC...\nMAF and missing rate...\n\n")
+        system(QC2)
+        #mm=as.numeric(strsplit(system(paste0("wc -l ", froot, ".2.maf.geno.bim"),intern=T)," ")[[1]][1])
+        #M=(input$proportion)*mm
+        Thin_CMD = paste0(plink2, " --bfile ",froot,".2.maf.geno --chr-set 90 --allow-extra-chr --allow-no-sex --thin ",input$proportion, " --make-bed --out ",froot,".3.core")
+        cat("\nThin...\n")
         system(Thin_CMD)
-        frootCore = paste0(froot,".",input$proportion)
+        
+        frootCore = paste0(froot,".3.core")
       }
 
       return (frootCore)
