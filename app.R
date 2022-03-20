@@ -4,9 +4,8 @@ conf=read.table("X-LD.conf", as.is = T)
 # install.packages(c("shiny","bsplus","RColorBrewer","corrplot"))
 library(shiny)
 library(bsplus)
-library(RColorBrewer)
-library(corrplot)
-
+library(reshape2)
+library(ggplot2)
 unzip = "unzip -o -q plink.zip"
  
 if(length(grep("linux",sessionInfo()$platform, ignore.case = TRUE))>0) {
@@ -70,10 +69,7 @@ ui <- fluidPage(
             column(
               4,
               numericInput('autosome', "Autosome number", value=22)
-            )
-          ),
-          hr(),
-          fluidRow(
+            ),
             column(
               4,
               radioButtons(
@@ -83,13 +79,16 @@ ui <- fluidPage(
                 selected = 'outbred'
                 #inline = T
               ) %>%
-              shinyInput_label_embed(
-                icon("question-circle") %>%
-                bs_embed_popover(
-                  title = "INBRED is chosen if your sample has homogenous genome, otherwise choose OUTBRED", content = "", placement = "right"
+                shinyInput_label_embed(
+                  icon("question-circle") %>%
+                    bs_embed_popover(
+                      title = "INBRED is chosen if your sample has homogenous genome, otherwise choose OUTBRED", content = "", placement = "right"
+                    )
                 )
-              )
-            ),
+            )
+          ),
+          hr(),
+          fluidRow(
             column(
               4,
               sliderInput(
@@ -117,45 +116,60 @@ ui <- fluidPage(
                   title = "Marker with missing call rates exceeding the provided value will be filtered out", content = "", placement = "right"
                 )
               )
-            )
-          ),
-          hr(),
-          fluidRow(
-            column(
-              4,
-              numericInput('ld_windows', "LD pruning (windows size) [optional]", value="") %>%
-              shinyInput_label_embed(
-                icon("question-circle") %>%
-                bs_embed_popover(
-                  title = "Window size in variant count or kilobase", content = "", placement = "right"
-                )
-              )
-            ),
-            column(
-              4,
-              numericInput('step_size', "LD pruning (step size) [optional]", value="") %>%
-              shinyInput_label_embed(
-                icon("question-circle") %>%
-                bs_embed_popover(
-                  title = "Variant count to shift the window at the end of each step", content = "", placement = "right"
-                )
-              )
             ),
             column(
               4,
               sliderInput(
-                'r_square',
-                'LD pruning (R square) [optional]',
-                value = '0', min = 0, max = 1, step = 0.1
+                'proportion',
+                'Marker sampling proportion',
+                value = 1, min = 0.2, max = 1, step = 0.2
               ) %>%
-              shinyInput_label_embed(
-                icon("question-circle") %>%
-                bs_embed_popover(
-                  title = "Pairs of variants in the current window with squared correlation greater than the threshold will be filtered out", content = "", placement = "right"
+                shinyInput_label_embed(
+                  icon("question-circle") %>%
+                    bs_embed_popover(
+                      title = "A proprotion of the whole genome markers are sampled for X-LD analysis", content = "", placement = "right"
+                    )
                 )
-              )
-            )
-          ),      
+            ),            
+            
+          ),
+          hr(),
+          # fluidRow(
+          #   column(
+          #     4,
+          #     numericInput('ld_windows', "LD pruning (windows size) [optional]", value="") %>%
+          #     shinyInput_label_embed(
+          #       icon("question-circle") %>%
+          #       bs_embed_popover(
+          #         title = "Window size in variant count or kilobase", content = "", placement = "right"
+          #       )
+          #     )
+          #   ),
+          #   column(
+          #     4,
+          #     numericInput('step_size', "LD pruning (step size) [optional]", value="") %>%
+          #     shinyInput_label_embed(
+          #       icon("question-circle") %>%
+          #       bs_embed_popover(
+          #         title = "Variant count to shift the window at the end of each step", content = "", placement = "right"
+          #       )
+          #     )
+          #   ),
+          #   column(
+          #     4,
+          #     sliderInput(
+          #       'r_square',
+          #       'LD pruning (R square) [optional]',
+          #       value = '0', min = 0, max = 1, step = 0.1
+          #     ) %>%
+          #     shinyInput_label_embed(
+          #       icon("question-circle") %>%
+          #       bs_embed_popover(
+          #         title = "Pairs of variants in the current window with squared correlation greater than the threshold will be filtered out", content = "", placement = "right"
+          #       )
+          #     )
+          #   )
+          # ),      
           fluidRow(
             column(
               4,
@@ -203,7 +217,7 @@ ui <- fluidPage(
                 column(3,
                   downloadButton(
                     'LD', 
-                    'LD matrix'
+                    'Table'
                   )
                 )
               )
@@ -280,7 +294,28 @@ server <- function(input, output, session) {
         stop("The chromosome index in the .bim file must be numeric! Refresh to continue.")
       }
       
-      return (froot)
+      incProgress(1/3, detail = paste0(" data pre-filter ..."))
+      
+      QC1 = paste0(plink2, " --bfile ", froot, " --chr-set ", input$autosome, " --allow-extra-chr --set-missing-var-ids @:# --autosome --snps-only --make-bed --out ", froot,".1.autosome.snp")
+      QC2 = paste0(plink2, " --bfile ", froot, ".1.autosome.snp --chr-set ", input$autosome, " --maf ", input$maf_cut, " --geno ", input$geno_cut, " --make-bed --out ", froot,".2.maf.geno")
+      cat("QC...\nExtract autosome SNP variants...\n\n")
+      system(QC1)
+      cat("\nQC...\nMAF and missing rate...\n\n")
+      system(QC2)
+      cat("\nQC...\nFinished...\n\n")
+      mm=as.numeric(strsplit(system(paste0("wc -l ", froot, ".2.maf.geno.bim"),intern=T)," ")[[1]][1])
+      
+      M=as.numeric(input$proportion)*mm
+      
+      if (as.numeric(input$proportion)==1){
+        frootCore = paste0(froot,".2.maf.geno")
+      }else{
+        Thin_CMD = paste0(plink, " --bfile ",froot,".2.maf.geno --chr-set 90 --allow-extra-chr --allow-no-sex --thin-count ",M, " --make-bed --out ",froot,".",input$proportion)
+        system(Thin_CMD)
+        frootCore = paste0(froot,".",input$proportion)
+      }
+
+      return (frootCore)
     })
   })
   
@@ -290,59 +325,31 @@ server <- function(input, output, session) {
     updateNavbarPage(session, "inNavbar", selected = "visualization")
     updateTabsetPanel(session, "X-LDFunctions","X-LD")
     
-    autosome=as.numeric(input$autosome)
-    
-    froot = currentFile()
+    froot <<- currentFile()
     withProgress(message="X-LD:", value=0, {
-      n=4  
-      Chr_Me_Matr <- data.frame(matrix(NA,nrow=autosome,ncol=autosome))
-      rownames(Chr_Me_Matr)[1:autosome] <- c(paste0("chr",seq(1,autosome,1)))
-      colnames(Chr_Me_Matr)[1:autosome] <- c(paste0("chr",seq(1,autosome,1)))
-      # Chr marker
-      Chr_Mark_Matr <- data.frame(matrix(NA,nrow=autosome,ncol=autosome))
-      rownames(Chr_Mark_Matr)[1:autosome] <- c(paste0("chr",seq(1,autosome,1)))
-      colnames(Chr_Mark_Matr)[1:autosome] <- c(paste0("chr",seq(1,autosome,1)))
-      # MAF+Geno+LD
-      time1 = proc.time()
-      incProgress(1/n, detail = paste0(" QC ..."))
+      incProgress(1/1, detail = paste0(" collecting information ..."))
       
-      if (input$ld_windows=="" | input$step_size=="" | input$r_square==0){
-        QC1 = paste0(plink2, " --bfile ", froot, " --chr-set ", autosome, " --allow-extra-chr --set-missing-var-ids @:# --autosome --snps-only --make-bed --out ", froot,".1.autosome.snp")
-        QC2 = paste0(plink2, " --bfile ", froot, ".1.autosome.snp --chr-set ", autosome, " --maf ", input$maf_cut, " --geno ", input$geno_cut, " --make-bed --out ", froot,".3.core")
-        cat("QC...\nExtract autosome SNP variants...\n\n")
-        system(QC1)
-        cat("\nQC...\nMAF and missing rate...\n\n")
-        system(QC2)
-        cat("\nQC...\nFinished...\n\n")
-      }else{
-        QC1 = paste0(plink2, " --bfile ", froot, " --chr-set ", autosome, " --allow-extra-chr --set-missing-var-ids @:# --autosome --snps-only --make-bed --out ", froot,".1.autosome.snp")
-        QC2 = paste0(plink2, " --bfile ", froot, ".1.autosome.snp --chr-set ", autosome, " --maf ", input$maf_cut, " --geno ", input$geno_cut, " --make-bed --out ", froot,".2.maf.geno")
-        cat("QC...\nExtract autosome SNP variants...\n\n")
-        system(QC1)
-        cat("\nQC...\nMAF and missing rate...\n\n")
-        system(QC2)
-        QC3 = paste0(plink2, " --bfile ", froot, ".2.maf.geno --indep-pairwise ",input$ld_windows," ",input$step_size," ",input$r_square," --out ", froot ,".2.maf.geno.LD", " --chr-set ",autosome)
-        QC4 = paste0(plink2, " --bfile ", froot, ".2.maf.geno --extract ", froot,".2.maf.geno.LD.prune.in"," --make-bed --out ", froot,".3.core ", " --chr-set ",autosome)
-        system(QC3)
-        system(QC4)
-        cat("\nQC...\nFinished...\n\n")
-      }
-
-      #sc=ifelse(input$bred == 'inbred', 2, 1)
-      #nn<-nrow(read.table(paste0(froot, ".3.core.fam"), as.is = T, header = F, colClasses = c("character","NULL","NULL","NULL","NULL","NULL")))
-      time2 = proc.time()
-      time = (time2-time1)[3][[1]]
-      print(paste0(froot,' takes ',time,' seconds to finish the QC step.'))
-      
-      incProgress(2/n, detail = paste0(" making grm and calculate chromosome level LD ..."))
-      # GRM construct + Me calculate
-      time3 = proc.time()
-      nn<-nrow(read.table(paste0(froot, ".3.core.fam"), as.is = T, header = F, colClasses = c("character","NULL","NULL","NULL","NULL","NULL")))
-      sc=ifelse(input$bred == 'inbred', 2, 1)
-      offDiag_Matr <- data.frame(matrix(NA,nrow=nn*(nn-1)/2,ncol=autosome))
+      nn<-nrow(read.table(paste0(froot, ".fam"), as.is = T, header = F, colClasses = c("character","NULL","NULL","NULL","NULL","NULL")))
+      mm<-nrow(read.table(paste0(froot,'.bim'), as.is = T, header=F, colClasses = c("character","NULL","NULL","NULL","NULL","NULL")))
+    })
     
-      for(i in 1:autosome){
-        Chr_Mark_Num_cmd = paste0("cat ",froot,".3.core.bim | grep -w '^",i,"' | wc -l")
+    withProgress(message="EigenGWAS:", value=0, {
+      time1 = proc.time()
+      n = 4
+      Chr_Me_Matr <- data.frame(matrix(NA,nrow=input$autosome,ncol=input$autosome))
+      rownames(Chr_Me_Matr)[1:input$autosome] <- c(paste0("chr",seq(1,input$autosome,1)))
+      colnames(Chr_Me_Matr)[1:input$autosome] <- c(paste0("chr",seq(1,input$autosome,1)))
+      # Chr marker
+      Chr_Mark_Matr <- data.frame(matrix(NA,nrow=input$autosome,ncol=input$autosome))
+      rownames(Chr_Mark_Matr)[1:input$autosome] <- c(paste0("chr",seq(1,input$autosome,1)))
+      colnames(Chr_Mark_Matr)[1:input$autosome] <- c(paste0("chr",seq(1,input$autosome,1)))
+      
+      incProgress(1/n, detail = paste0(" making grm and calculate chromosome level LD ..."))
+      sc=ifelse(input$bred == 'inbred', 2, 1)
+      offDiag_Matr <- data.frame(matrix(NA,nrow=nn*(nn-1)/2,ncol=input$autosome))
+      
+      for(i in 1:input$autosome){
+        Chr_Mark_Num_cmd = paste0("cat ",froot,".bim | grep -w '^",i,"' | wc -l")
         Chr_Mark_Num = system(Chr_Mark_Num_cmd,intern = TRUE)
         Chr_Mark_Num <- as.numeric(Chr_Mark_Num)
         # Determine whether chromosomes exist
@@ -351,7 +358,7 @@ server <- function(input, output, session) {
         }else{
           Chr_Mark_Matr[i,i] <- Chr_Mark_Num
           incProgress(2/n, detail = paste0(" making grm for chromosome ",i ," ..."))
-          GRM_cmd = paste0(plink2, " --bfile ",froot,".3.core --chr ",i," --chr-set 90 --allow-extra-chr --allow-no-sex --make-grm-gz --out ",froot,".chr",i)
+          GRM_cmd = paste0(plink2, " --bfile ",froot," --chr ",i," --chr-set 90 --allow-extra-chr --allow-no-sex --make-grm-gz --out ",froot,".chr",i)
           system(GRM_cmd)
           gz=gzfile(paste0(froot,".chr",i, ".grm.gz"))
           grm=read.table(gz, as.is = T)
@@ -360,17 +367,19 @@ server <- function(input, output, session) {
           Me=1/mean(offDiag_2,na.rm=TRUE)
           Chr_Me_Matr[i,i] <- as.numeric(Me)
         }
+        
       }
-      time4 = proc.time()
-      time = (time4-time3)[3][[1]]
+      time2 = proc.time()
+      time = (time2-time1)[3][[1]]
       print(paste0(froot,' takes ',time,' seconds to finish the decomposition of me.'))
-      for(i in 1:autosome){
+      
+      for(i in 1:input$autosome){
         if(Chr_Mark_Matr[i,i]==0){
           next
         }else{
           SNP1=as.numeric(Chr_Mark_Matr[i,i])
           offDiag1 = offDiag_Matr[,i]
-          for(j in 1:autosome){
+          for(j in 1:input$autosome){
             if(Chr_Mark_Matr[j,j]==0){
               next
             }else{
@@ -386,7 +395,7 @@ server <- function(input, output, session) {
           }
           
         }
-      }      
+      }
       
       # Fill lower triangle
       Chr_Me_Matr[lower.tri(Chr_Me_Matr)] <- t(Chr_Me_Matr)[lower.tri(Chr_Me_Matr)]
@@ -415,13 +424,14 @@ server <- function(input, output, session) {
           }
         }
       }
-
+      
       LD <- as.matrix(LD)
       LD[LD < 0] <- 1e-300
       LD_Final <- adjustdata(LD)
       colnames(LD_Final)[1] <- ""
-      Output3=paste0(froot,"_Chromosome_Level_LD.txt")
+      Output3="X_LD.txt"
       write.table(LD_Final,file=Output3,quote = FALSE,sep="\t",row.names = FALSE)
+      #write.table(LD_Final,file=paste0(froot,".X_LD.txt"),quote = FALSE,sep="\t",row.names = FALSE)
       # LD scale calculate
       LD_Scale <- as.data.frame(matrix(NA,nrow=nrow(Chr_Me_Matr),ncol=nrow(Chr_Me_Matr)))
       colnames(LD_Scale) <- rownames(Chr_Me_Matr)
@@ -437,115 +447,172 @@ server <- function(input, output, session) {
         }
       }
       
-
       LD_Scale <- as.matrix(LD_Scale)
       LD_Scale_Final <- adjustdata(LD_Scale)
       colnames(LD_Scale_Final)[1] <- ""
-      Output4=paste0(froot,"_Chromosome_Level_LD_Scale.txt")
+      Output4="X_LD_Scaled.txt"
       write.table(LD_Scale_Final,file=Output4,quote = FALSE,sep="\t",row.names = FALSE)
-    
-
-    withProgress(message="X-LD complete! Visualizing:", value=0, {    
-      Output5=paste0(froot,"_Chromosome_Level_LD.png")
-      Output6=paste0(froot,"_Chromosome_Level_LD_Scale.png")
-      # Log conversion
-      Log_LD <- -log10(LD)          
-      col1 <- colorRampPalette(c("steelblue","white"))
-      col2 <- colorRampPalette(c("white","steelblue"))               
-    
-      incProgress(2/n, detail = paste0(" LD plot ... "))
-      output$me <- renderPlot({
-        corrplot(
-          Log_LD,
-          is.corr=FALSE,
-          method = "color",
-          type = "up",
-          col = col1(20),
-          order = "original",
-          cl.length=5,
-          addgrid.col="white",
-          cl.pos = "r",
-          mar=c(0, 0, 1, 0),
-          tl.col="black",tl.cex = 0.5,cl.ratio = 0.2,
-          title = expression(paste("Decomposition of ",m[e]," [",-log[10],"LD]"))
-        )
-      })
+      #write.table(LD_Scale_Final,file=paste0(froot,".X_LD_Scaled.txt"),quote = FALSE,sep="\t",row.names = FALSE)
+      Log_LD <- -log10(LD)
+      Log_LD[lower.tri(Log_LD)] <- NA
+      Melt1 <- melt(Log_LD, na.rm = TRUE)
+      Max=max(Melt1[,3])
+      Min=min(Melt1[,3])
+      Mid=(Max+Min)/2
       
-      png(file=Output5,width = 600, height = 600)  
-      corrplot(
-        Log_LD,
-        is.corr=FALSE,
-        method = "color",
-        type = "up",
-        col = col1(20),
-        order = "original",
-        cl.length=5,
-        addgrid.col="white",
-        cl.pos = "r",
-        mar=c(0, 0, 1, 0),
-        tl.col="black",tl.cex = 0.5,cl.ratio = 0.2,
-        title = expression(paste("Decomposition of ",m[e]," [",-log[10],"LD]"))
-      )        
-      dev.off()
+      LD_Scale[lower.tri(LD_Scale)] <- NA
+      Melt2 <- melt(LD_Scale, na.rm = TRUE)
+    })
+    
+    withProgress(message="X-LD complete! Visualizing:", value=0, { 
+      n=4
+      incProgress(1/n, detail = paste0(" LD plot ... "))
+      #Output5=paste0(froot,"_X_LD.pdf")
+      #Output6=paste0(froot,"_X_LD_Scaled.pdf")
+      # Log conversion
+      # Log_LD <- -log10(LD)
+      # Log_LD[lower.tri(Log_LD)] <- NA
+      # Melt <- melt(Log_LD, na.rm = TRUE)
+      # Max=max(Melt[,3])
+      # Min=min(Melt[,3])
+      # Mid=(Max+Min)/2
+      
+      output$me <- renderPlot({
+        ggplot(data = Melt1, aes(Var2, Var1, fill = value))+
+          geom_tile(color = "white")+
+          scale_fill_gradient2(low = "#FF0000", high = "#FFFFFF", mid = "#FF9E81",space = "Lab",
+                               midpoint = Mid, limit = c(Min,Max),name=expression(paste(-log[10],"LD"))) +
+          theme_minimal()+
+          scale_y_discrete(position = "right") +
+          theme(
+            text=element_text(family="serif"),
+            axis.title.x = element_blank(),
+            axis.text.x = element_text(angle = 90,family="serif"),
+            axis.title.y = element_blank(),
+            axis.text.y  = element_text(family="serif"),
+            panel.grid.major = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            axis.ticks = element_blank(),
+            legend.justification = c(1, 0),
+            legend.position = c(0.6, 0.7),
+            legend.direction = "horizontal")+
+          guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                                       title.position = "top", title.hjust = 0.5)) +
+          coord_fixed()
+       
+      })
+      P1 <- ggplot(data = Melt1, aes(Var2, Var1, fill = value))+
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "#FF0000", high = "#FFFFFF", mid = "#FF9E81",space = "Lab",
+                             midpoint = Mid, limit = c(Min,Max),name=expression(paste(-log[10],"LD"))) +
+        theme_minimal()+
+        scale_y_discrete(position = "right") +
+        theme(
+          text=element_text(family="serif"),
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 90,family="serif"),
+          axis.title.y = element_blank(),
+          axis.text.y  = element_text(family="serif"),
+          panel.grid.major = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          axis.ticks = element_blank(),
+          legend.justification = c(1, 0),
+          legend.position = c(0.6, 0.7),
+          legend.direction = "horizontal")+
+        guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                                     title.position = "top", title.hjust = 0.5)) +
+        coord_fixed()
+      ggsave("X_LD.pdf",P1)
       
       incProgress(2/n, detail = paste0(" LD (scaled) plot ... "))
+      #LD_Scale <- data.frame(read.table(froot,".X_LD_Scaled.txt"))
+      # LD_Scale[lower.tri(LD_Scale)] <- NA
+      # Melt <- melt(LD_Scale, na.rm = TRUE)
+      
       output$me_scale <- renderPlot({
-        corrplot(
-          LD_Scale,
-          is.corr=FALSE,
-          method = "color",
-          type = "up",
-          col = col2(20),
-          order = "original",
-          cl.length=5,
-          addgrid.col="white",
-          cl.pos = "r",
-          mar=c(0, 0, 1, 0),
-          tl.col="black",tl.cex = 1,cl.ratio = 0.2,
-          title = expression(paste("Decomposition of ",m[e]," [",-log[10],"LD (scaled)]"))
-        )
+        ggplot(data = Melt2, aes(Var2, Var1, fill = value))+
+          geom_tile(color = "white")+
+          scale_fill_gradient2(low = "#FFFFFF", high = "#FF0000",mid = "#FF9E81",
+                               midpoint = 0.5, limit = c(0,1), space = "Lab",
+                               name="LD (scaled)") +
+          theme_minimal()+
+          scale_y_discrete(position = "right") +
+          theme(
+            text=element_text(family="serif"),
+            axis.title.x = element_blank(),
+            axis.text.x = element_text(angle = 90,family="serif"),
+            axis.title.y = element_blank(),
+            axis.text.y  = element_text(family="serif"),
+            panel.grid.major = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            axis.ticks = element_blank(),
+            legend.justification = c(1, 0),
+            legend.position = c(0.6, 0.7),
+            legend.direction = "horizontal")+
+          guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                                       title.position = "top", title.hjust = 0.5)) +
+          coord_fixed()
+        
       })
-      
-      png(file=Output6,width = 600, height = 600)
-      corrplot(
-        LD_Scale,
-        is.corr=FALSE,
-        method = "color",
-        type = "up",
-        col = col2(20),
-        order = "original",
-        cl.length=5,
-        addgrid.col="white",
-        cl.pos = "r",
-        mar=c(0, 0, 1, 0),
-        tl.col="black",tl.cex = 1,cl.ratio = 0.2,
-        title = expression(paste("Decomposition of ",m[e]," [",-log[10],"LD (scaled)]"))
-      )
-      dev.off()  
-      
+      P2 <- ggplot(data = Melt2, aes(Var2, Var1, fill = value))+
+        geom_tile(color = "white")+
+        scale_fill_gradient2(low = "#FFFFFF", high = "#FF0000",mid = "#FF9E81",
+                             midpoint = 0.5, limit = c(0,1), space = "Lab",
+                             name="LD (scaled)") +
+        theme_minimal()+
+        scale_y_discrete(position = "right") +
+        theme(
+          text=element_text(family="serif"),
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 90,family="serif"),
+          axis.title.y = element_blank(),
+          axis.text.y  = element_text(family="serif"),
+          panel.grid.major = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          axis.ticks = element_blank(),
+          legend.justification = c(1, 0),
+          legend.position = c(0.6, 0.7),
+          legend.direction = "horizontal")+
+        guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                                     title.position = "top", title.hjust = 0.5)) +
+        coord_fixed()
+      ggsave("X_LD_Scaled.pdf",P2)
+  
       output$figure <- downloadHandler( 
         filename = function(){
           paste0('X-LD_Fig.zip')
         },
+        
         content = function(file) {
-          fs <- c(paste0(froot,"_Chromosome_Level_LD.png"),paste0(froot,"_Chromosome_Level_LD_Scale.png"))
+          froot = currentFile()
+          files = NULL
+          fname1=paste0("X_LD",".pdf")
+          fname2=paste0("X_LD_Scaled",".pdf")
+          fs <- c(fname1,fname2)
           zip(zipfile = file, files = fs)
-        }
-      )
+          }
+        )
+  
       output$LD <- downloadHandler(          
         filename = function(){
           paste0("X-LD_Table.zip")
         },
         content = function(file) {
-          fs <- c(paste0(froot,"_Chromosome_Level_LD.txt"),paste0(froot,"_Chromosome_Level_LD_Scale.txt"))
+          froot = currentFile()
+          files = NULL
+          fname1=paste0("X_LD",".txt")
+          fname2=paste0("X_LD_Scaled",".txt")
+          fs <- c(fname1,fname2)
           zip(zipfile = file, files = fs)
         }
       )                  
-        
-    })
-              
   })
-  })
+})
 }
+#})
 # Run the application
 shinyApp(ui = ui, server = server)
