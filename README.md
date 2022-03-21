@@ -4,6 +4,7 @@ The core algorithm of X-LD is implemented in C and C++ and combined with Rshiny 
 You can easily deploy X-LD directly at you PC/sever by running the following commands in RStudio/R.
 ## Quick Start Guide
 ### Run the commands below to initialize X-LD Shiny.
+Note: For Windows users, please **run R studio as an administrator**.
 ~~~
 # This is an R console
 # 1. First, make sure the following R packages are installed before running
