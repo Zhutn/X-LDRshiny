@@ -28,9 +28,9 @@ Normally for most of the users working with **Windows/MacOS/Unbuntu etc.**, ther
 
 # Assume your linux IP is 100.100.100.1, and port 1234 is accessible
 runApp(host='100.100.100.1',port=1234)
-X-LD is then availble at computer in LAN, by visit 100.100.100.1:1234 in the browser.
+# X-LD is then availble at computer in LAN, by visit 100.100.100.1:1234 in the browser.
 
-The way to open the specific port (for example 1234) in linux:
+# The way to open the specific port (for example 1234) in linux:
 # This is a linux bash/terminal
 # Root privileges are required
 # make sure the firewall is active
