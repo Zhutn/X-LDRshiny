@@ -6,6 +6,7 @@ library(shiny)
 library(bsplus)
 library(reshape2)
 library(ggplot2)
+Sys.setenv(LANGUAGE = en")
 unzip = "unzip -o -q plink.zip"
  
 if(length(grep("linux",sessionInfo()$platform, ignore.case = TRUE))>0) {
