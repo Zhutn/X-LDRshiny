@@ -4,7 +4,7 @@ The core algorithm of X-LD is implemented in C and C++ and combined with Rshiny 
 You can easily deploy X-LD directly at you PC/sever by running the following commands in RStudio/R.
 ## Quick Start Guide
 ### Run the commands below to initialize X-LD Shiny.
-Note: For Windows users, please **run R studio as an administrator**.
+For **Windows users**, please **run R studio as an administrator**.
 ~~~
 # This is an R console
 # 1. First, make sure the following R packages are installed before running
@@ -20,6 +20,7 @@ Normally for most of the users working with **Windows/MacOS/Unbuntu etc.**, ther
 Find the download link at the homepage Code button, download the zipped source codes.
 # 2. Unzip the soucrce codes locally
 # 3. Open R/Rstudio and run the commands below to initialize X-LD Shiny.
+# For Windows users, please run R studio as an administrator.
 setwd("/home/your_name/X-LDRshiny-main/")
 library(shiny)
 runApp()
@@ -54,10 +55,10 @@ firewall-cmd --reload
 ~~~
 ### Some possible errors and their solutions 
 ~~~
-# For Windows users
 Error in utils::download.file(url, method = method, ...) : 
-  cannot open URL 'https://github.com/huangxin0221/X-LDRshiny/archive/master.tar.gz' # Do not use runGitHub function to initialize X-LD Shiny 
-
+  cannot open URL 'https://github.com/huangxin0221/X-LDRshiny/archive/master.tar.gz' # Do not use runGitHub function to initialize X-LD Shiny
+# For Windows users
+ 
 # For Mac users
 
 # For linux users
