@@ -56,6 +56,7 @@ firewall-cmd --reload
 # For Windows users
 Error in utils::download.file(url, method = method, ...) : 
   cannot open URL 'https://github.com/huangxin0221/X-LDRshiny/archive/master.tar.gz' # Do not use runGitHub function to initialize X-LD Shiny 
+
 # For Mac users
 
 # For linux users
