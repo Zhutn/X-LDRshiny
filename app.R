@@ -528,7 +528,7 @@ server <- function(input, output, session) {
         guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
                                      title.position = "top", title.hjust = 0.5)) +
         coord_fixed()
-      ggsave("X_LD.pdf",P1)
+      ggsave("X_LD.pdf",P1,width=10,height=10)
       
       incProgress(2/n, detail = paste0(" LD (scaled) plot ... "))
       #LD_Scale <- data.frame(read.table(froot,".X_LD_Scaled.txt"))
@@ -584,7 +584,7 @@ server <- function(input, output, session) {
         guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
                                      title.position = "top", title.hjust = 0.5)) +
         coord_fixed()
-      ggsave("X_LD_Scaled.pdf",P2)
+      ggsave("X_LD_Scaled.pdf",P2,width=10,height=10)
   
       output$figure <- downloadHandler( 
         filename = function(){
