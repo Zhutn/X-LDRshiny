@@ -13,6 +13,7 @@ library(shiny)
 runGitHub("X-LDRshiny", "huangxin0221")
 ~~~
 ### Other ways to initialize X-LD Shiny.
+Normally for most of the users working with **Windows/MacOS/Unbuntu etc.**, there should be a window or browser tab pops up, X-LD is then ready for the analysis.
 ~~~
 # 1. Download the source codes of X-LD Shiny
 Find the download link at the homepage Code button, download the zipped source codes.
@@ -22,7 +23,7 @@ setwd("/home/your_name/X-LDRshiny-main/")
 library(shiny)
 runApp()
 ~~~
-Normally for most of the users working with **Windows/MacOS/Unbuntu etc.**, there should be a window or browser tab pops up, X-LD is then ready for the analysis. For some of the **linux OS without displays**, LAN remote access can be used for the X-LD Shiny.
+For some of the **linux OS without displays**, LAN remote access can be used for the X-LD Shiny.
 ~~~
 # This is an R console
 
