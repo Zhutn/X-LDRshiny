@@ -3,7 +3,7 @@
 The core algorithm of X-LD is implemented in C and C++ and combined with Rshiny to build interactive web apps straight from R.
 You can easily deploy X-LD directly at you PC/sever by running the following commands in RStudio/R.
 ## Quick Start Guide
-Run the commands below to **initialize X-LD Shiny**.
+### Run the commands below to initialize X-LD Shiny.
 ~~~
 # This is an R console
 # 1. First, make sure the following R packages are installed before running
@@ -12,7 +12,7 @@ install.packages(c("shiny","bsplus","ggplot2","reshape2"))
 library(shiny)
 runGitHub("X-LDRshiny", "huangxin0221")
 ~~~
-Other ways to initialize X-LD Shiny.
+### Other ways to initialize X-LD Shiny.
 ~~~
 # 1. Download the source codes of X-LD Shiny
 Find the download link at the homepage Code button, download the zipped source codes.
@@ -27,8 +27,10 @@ Normally for most of the users working with **Windows/MacOS/Unbuntu etc.**, ther
 # This is an R console
 
 # Assume your linux IP is 100.100.100.1, and port 1234 is accessible
+library(shiny)
 runApp(host='100.100.100.1',port=1234)
 # X-LD is then availble at computer in LAN, by visit 100.100.100.1:1234 in the browser.
+
 
 # The way to open the specific port (for example 1234) in linux:
 # This is a linux bash/terminal
@@ -47,6 +49,15 @@ firewall-cmd --zone=public --add-port=1234/tcp --permanent
 # reload firewall configuration
 firewall-cmd --reload
 
+~~~
+### Some possible errors and their solutions 
+~~~
+# For Windows users
+
+# For Mac users
+
+# For linux users
+Error: GDK_BACKEND does not match available displays  # Normal error reporting without any adjustment
 ~~~
 All platforms support.
 
