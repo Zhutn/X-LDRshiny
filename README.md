@@ -17,7 +17,7 @@ Other ways to initialize X-LD Shiny.
 # 1. Download the source codes of X-LD Shiny
 Find the download link at the homepage Code button, download the zipped source codes.
 # 2. Unzip the soucrce codes locally
-# 3. Open R/Rstudio and run the commands below to initialize EigenGWAS Shiny.
+# 3. Open R/Rstudio and run the commands below to initialize X-LD Shiny.
 setwd("/home/your_name/X-LDRshiny-main/")
 library(shiny)
 runApp()
